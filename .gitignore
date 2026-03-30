@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Model artifacts (large files — use Git LFS or exclude)
+model_artifacts/model.pkl
+model_artifacts/scaler.pkl
+model_artifacts/label_encoder.pkl
+# Keep features.json (small, needed for reference)
+!model_artifacts/features.json
+
+# Dataset (very large — never commit)
+CICIDS2017/
+*.pcap
+*.pcapng
+pcap_files/
+
+# Environment variables
+.env
+.env.local
+.env.production
+*.env
+
+# Supabase keys (never commit)
+secrets.py
+
+# Node
+node_modules/
+dashboard/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# React build
+dashboard/build/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+# Local tooling
+.codex
