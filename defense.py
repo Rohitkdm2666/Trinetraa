@@ -112,6 +112,8 @@ def check_rate_limit(record: IPRecord) -> bool:
 # ─────────────────────────────────────────────
 def check_country_block(country: str) -> bool:
     """Returns True if country is in blocklist."""
+    if not country:
+        return False
     return country.upper() in BLOCKED_COUNTRIES
 
 
@@ -344,3 +346,278 @@ def get_defense_stats() -> dict:
             for r in sorted(ip_records.values(), key=lambda x: -x.risk_score)[:10]
         ]
     }
+
+
+# ═════════════════════════════════════════════
+# PHASE 2 — NOVEL DEFENSE CONTRIBUTIONS
+# ═════════════════════════════════════════════
+
+import hashlib
+from collections import Counter as _Counter
+
+# ─────────────────────────────────────────────
+# A) Behavioral Fingerprinting
+# ─────────────────────────────────────────────
+_fingerprint_db: dict[str, dict] = {}   # hash → {ips: set, first_seen, last_seen}
+
+
+def generate_fingerprint(features: dict, src_ip: str) -> str:
+    """
+    Generate a unique behavioral fingerprint per IP based on flow characteristics.
+    The fingerprint encodes: destination port bucket, flag pattern, packet-size bucket,
+    and flow-rate bucket — making it resilient to minor noise while catching structural
+    similarities across different IPs performing the same attack pattern.
+
+    Returns a 16-char hex fingerprint string.
+    """
+    port  = int(features.get("Destination Port", 0))
+    syn   = int(features.get("SYN Flag Count", 0))
+    ack   = int(features.get("ACK Flag Count", 0))
+    psh   = int(features.get("PSH Flag Count", 0))
+    pps   = float(features.get("Flow Packets/s", 0))
+    fwd_m = float(features.get("Fwd Packet Length Mean", 0))
+    bwd_m = float(features.get("Bwd Packet Length Mean", 0))
+    dur   = float(features.get("Flow Duration", 0))
+
+    # Bucket continuous values to reduce noise sensitivity
+    port_bucket = port // 1000                  # 0-65 buckets  
+    pps_bucket  = int(min(pps, 10000) // 100)   # 0-100 buckets
+    fwd_bucket  = int(min(fwd_m, 1500) // 50)
+    bwd_bucket  = int(min(bwd_m, 1500) // 50)
+    dur_bucket  = int(min(dur, 1e7) // 1e4)
+    flag_sig    = f"{min(syn,1)}{min(ack,1)}{min(psh,1)}"  # binary flag presence
+
+    raw = f"{port_bucket}:{pps_bucket}:{fwd_bucket}:{bwd_bucket}:{dur_bucket}:{flag_sig}"
+    fp  = hashlib.md5(raw.encode()).hexdigest()[:16]
+
+    # Store in fingerprint DB
+    now_str = datetime.now(timezone.utc).isoformat()
+    if fp not in _fingerprint_db:
+        _fingerprint_db[fp] = {"ips": set(), "first_seen": now_str, "last_seen": now_str, "raw": raw}
+    _fingerprint_db[fp]["ips"].add(src_ip)
+    _fingerprint_db[fp]["last_seen"] = now_str
+
+    return fp
+
+
+def check_fingerprint_match(fingerprint: str) -> Optional[str]:
+    """
+    Check if the fingerprint has been seen from more than one IP.
+    If so, flag as IP rotation attack and return the list of matching IPs as a string.
+    This detects botnets / VPN-rotation attacks that share the same traffic signature.
+
+    Returns a comma-separated list of matching IPs, or None if no match.
+    """
+    entry = _fingerprint_db.get(fingerprint)
+    if not entry:
+        return None
+    ips = entry["ips"]
+    if len(ips) > 1:
+        return ",".join(sorted(ips))
+    return None
+
+
+def get_fingerprint_db() -> list:
+    """Return the full behavioral fingerprint database for display."""
+    return [
+        {
+            "fingerprint":  fp,
+            "ips":          sorted(entry["ips"]),
+            "ip_count":     len(entry["ips"]),
+            "first_seen":   entry["first_seen"],
+            "last_seen":    entry["last_seen"],
+            "is_rotation":  len(entry["ips"]) > 1,
+            "raw_features": entry["raw"],
+        }
+        for fp, entry in _fingerprint_db.items()
+        if entry["ips"]
+    ]
+
+
+# ─────────────────────────────────────────────
+# B) Adaptive Threat Level System
+# ─────────────────────────────────────────────
+_threat_events: deque = deque(maxlen=5000)  # (timestamp, is_attack)
+_subnet_blocks: set   = set()               # CIDRs blocked in CRITICAL mode
+
+
+def update_threat_level(is_attack: bool) -> str:
+    """
+    Track attack frequency per hour and dynamically update the global threat level.
+
+    Thresholds:
+      - NORMAL   : < 10 attacks / hour
+      - HIGH     : 10-49 attacks / hour   → stricter per-IP thresholds apply
+      - CRITICAL : ≥ 50 attacks / hour    → subnet-level blocking triggered
+    
+    Returns the current threat level string after updating.
+    """
+    now = time.time()
+    _threat_events.append((now, is_attack))
+    return get_threat_level()
+
+
+def get_threat_level() -> str:
+    """
+    Compute and return the current adaptive threat level based on attack
+    frequency observed in the last 60 minutes.
+
+    Returns "NORMAL", "HIGH", or "CRITICAL".
+    """
+    now = time.time()
+    one_hour_ago = now - 3600
+    recent_attacks = sum(1 for ts, atk in _threat_events if ts >= one_hour_ago and atk)
+
+    if recent_attacks >= 50:
+        return "CRITICAL"
+    elif recent_attacks >= 10:
+        return "HIGH"
+    return "NORMAL"
+
+
+def get_threat_stats() -> dict:
+    """Return threat level summary with attack counts for the dashboard."""
+    now = time.time()
+    one_hour_ago  = now - 3600
+    one_min_ago   = now - 60
+    recent_attacks_hr  = sum(1 for ts, atk in _threat_events if ts >= one_hour_ago and atk)
+    recent_attacks_min = sum(1 for ts, atk in _threat_events if ts >= one_min_ago  and atk)
+    level = get_threat_level()
+    return {
+        "level":               level,
+        "attacks_last_hour":   recent_attacks_hr,
+        "attacks_last_minute": recent_attacks_min,
+        "subnet_blocks":       list(_subnet_blocks),
+        "color":               "#ff3864" if level=="CRITICAL" else "#ff9f0a" if level=="HIGH" else "#30d158",
+    }
+
+
+# ─────────────────────────────────────────────
+# C) APT Attack Sequence Detection
+# ─────────────────────────────────────────────
+_ip_attack_history: dict[str, list] = {}   # ip → [{label, time}]
+_apt_detections:    list             = []   # global APT event log
+
+APT_SEQUENCES = [
+    # (trigger_sequence, classification_label, window_seconds)
+    (["PortScan", "SSH-Patator"],                 "APT:Reconnaissance→Exploit",   300),
+    (["PortScan", "FTP-Patator"],                 "APT:Reconnaissance→FTPExploit", 300),
+    (["PortScan", "DoS Hulk"],                    "APT:Reconnaissance→DoS",        300),
+    (["PortScan", "DDoS"],                        "APT:Reconnaissance→DDoS",       300),
+    (["SSH-Patator", "DoS slowloris"],            "APT:BruteForce→Slowloris",      600),
+    (["PortScan", "SSH-Patator", "DoS Hulk"],     "APT:FullChain→Compromise",      600),
+]
+
+
+def detect_attack_sequence(src_ip: str, label: str) -> Optional[str]:
+    """
+    Detect multi-stage Advanced Persistent Threat (APT) sequences from a single IP.
+    Looks for known attack chains (e.g. PortScan → SSH-Patator) within configurable
+    time windows. This goes beyond traditional single-event IDS detection by tracking
+    the temporal attack narrative per source IP.
+
+    Returns classification string if APT detected, else None.
+    """
+    now = time.time()
+
+    if src_ip not in _ip_attack_history:
+        _ip_attack_history[src_ip] = []
+
+    # Append current event
+    _ip_attack_history[src_ip].append({"label": label, "time": now})
+
+    # Prune events older than 10 minutes
+    _ip_attack_history[src_ip] = [
+        e for e in _ip_attack_history[src_ip] if now - e["time"] <= 600
+    ]
+
+    history_labels = [e["label"] for e in _ip_attack_history[src_ip]]
+
+    for sequence, classification, window in APT_SEQUENCES:
+        # Check if the sequence appears as a subsequence within the window
+        indices = []
+        for step in sequence:
+            found_idx = None
+            start = indices[-1] + 1 if indices else 0
+            for j in range(start, len(history_labels)):
+                if history_labels[j] == step:
+                    t = _ip_attack_history[src_ip][j]["time"]
+                    t0 = _ip_attack_history[src_ip][indices[0]]["time"] if indices else t
+                    if t - t0 <= window:
+                        found_idx = j
+                        break
+            if found_idx is None:
+                break
+            indices.append(found_idx)
+        else:
+            # Full sequence matched
+            evt = {
+                "timestamp":   datetime.now(timezone.utc).isoformat(),
+                "src_ip":      src_ip,
+                "sequence":    " → ".join(sequence),
+                "classification": classification,
+                "matched_labels": sequence,
+            }
+            _apt_detections.append(evt)
+            log.info(f"🔥 APT DETECTED {src_ip}: {classification}")
+            return classification
+
+    return None
+
+
+def get_apt_detections() -> list:
+    """Return the full APT detection log, most recent first."""
+    return list(reversed(_apt_detections[-100:]))
+
+
+# ─────────────────────────────────────────────
+# D) Honeypot Trap
+# ─────────────────────────────────────────────
+HONEYPOT_PORTS = {9999, 8888, 7777, 6666, 31337, 4444}
+_honeypot_log: list = []
+
+
+def check_honeypot(features: dict) -> bool:
+    """
+    Detect connections to known honeypot ports.
+    Any traffic directed to honeypot ports is immediately flagged for permanent
+    blocking — legitimate services never run on these ports, so any connection
+    is inherently suspicious and indicates reconnaissance or intentional probing.
+
+    Returns True if honeypot was triggered, False otherwise.
+    Side effect: logs the event and permanently blocks the IP via iptables.
+    """
+    port = int(features.get("Destination Port", 0))
+    return port in HONEYPOT_PORTS
+
+
+def log_honeypot_trigger(src_ip: str, features: dict):
+    """Log a honeypot trigger event and permanently block the IP."""
+    port = int(features.get("Destination Port", 0))
+    evt = {
+        "timestamp":     datetime.now(timezone.utc).isoformat(),
+        "src_ip":        src_ip,
+        "port_targeted": port,
+        "action":        "PERMANENT_BLOCK",
+    }
+    _honeypot_log.append(evt)
+    log.info(f"🍯 HONEYPOT triggered: {src_ip} → port {port} — permanent block")
+    blocked_ips.add(src_ip)  # mark blocked immediately in-process
+
+    # Run iptables in a background thread — never block the async event loop
+    def _block():
+        try:
+            subprocess.run(
+                ["iptables", "-A", "INPUT", "-s", src_ip, "-j", "DROP"],
+                check=True, capture_output=True, timeout=5
+            )
+        except Exception as e:
+            log.warning(f"Honeypot iptables block failed for {src_ip}: {e}")
+
+    import threading
+    threading.Thread(target=_block, daemon=True).start()
+
+
+def get_honeypot_log() -> list:
+    """Return honeypot trigger log, most recent first."""
+    return list(reversed(_honeypot_log[-100:]))

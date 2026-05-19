@@ -1,0 +1,21 @@
+----------API---------
+cd /home/rohit_kadam/Workspace/EDI/final_project/project_3/Trinetraa
+source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+
+
+------------Predictor----------------
+cd /home/rohit_kadam/Workspace/EDI/final_project/project_3/Trinetraa
+sudo venv/bin/python predictor.py
+
+
+
+----------------dashboard--------------
+cd /home/rohit_kadam/Workspace/EDI/final_project/project_3/Trinetraa/dashboard
+npm start
+
+
+
+----------run attacks----------------------------
+cd /home/rohit_kadam/Workspace/EDI/final_project/project_3/Trinetraa && source venv/bin/activate && for a in portscan ddos dos_hulk dos_goldeneye dos_slowloris ssh_brute ftp_brute web_brute; do echo "===== Running: $a ====="; python3 attack_simulator.py --attack "$a"; done

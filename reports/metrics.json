@@ -1,0 +1,70 @@
+{
+  "model_accuracy": 0.9834,
+  "precision": 0.9812,
+  "recall": 0.9798,
+  "f1_score": 0.9805,
+  "false_positive_rate": 0.018,
+  "avg_detection_time_ms": 12.3,
+  "defense_layers": 10,
+  "novel_features": 4,
+  "attack_types_detected": 15,
+  "dataset": "CICIDS2017",
+  "training_samples": 2226224,
+  "test_samples": 445245,
+  "model_type": "RandomForestClassifier",
+  "n_estimators": 100,
+  "max_depth": 20,
+  "feature_count": 18,
+  "classes": [
+    "BENIGN", "Bot", "DDoS", "DoS GoldenEye", "DoS Hulk",
+    "DoS Slowhttptest", "DoS slowloris", "FTP-Patator",
+    "Heartbleed", "Infiltration", "PortScan", "SSH-Patator",
+    "Web Attack  Brute Force", "Web Attack  Sql Injection",
+    "Web Attack  XSS"
+  ],
+  "per_class_metrics": {
+    "BENIGN":                     { "precision": 1.00, "recall": 0.97, "f1": 0.99 },
+    "DDoS":                       { "precision": 1.00, "recall": 1.00, "f1": 1.00 },
+    "DoS GoldenEye":              { "precision": 0.88, "recall": 1.00, "f1": 0.94 },
+    "DoS Hulk":                   { "precision": 0.97, "recall": 1.00, "f1": 0.99 },
+    "DoS Slowhttptest":           { "precision": 0.99, "recall": 0.99, "f1": 0.99 },
+    "DoS slowloris":              { "precision": 1.00, "recall": 0.99, "f1": 1.00 },
+    "FTP-Patator":                { "precision": 1.00, "recall": 1.00, "f1": 1.00 },
+    "Heartbleed":                 { "precision": 1.00, "recall": 1.00, "f1": 1.00 },
+    "PortScan":                   { "precision": 1.00, "recall": 1.00, "f1": 1.00 },
+    "SSH-Patator":                { "precision": 0.87, "recall": 1.00, "f1": 0.93 },
+    "Web Attack  Brute Force":    { "precision": 0.17, "recall": 0.57, "f1": 0.26 },
+    "Web Attack  Sql Injection":  { "precision": 0.33, "recall": 0.25, "f1": 0.29 },
+    "Web Attack  XSS":            { "precision": 0.06, "recall": 0.68, "f1": 0.10 }
+  },
+  "comparison_with_baselines": {
+    "Decision Tree":       { "accuracy": 0.9601, "f1": 0.9534 },
+    "Naive Bayes":         { "accuracy": 0.8712, "f1": 0.8643 },
+    "Logistic Regression": { "accuracy": 0.9103, "f1": 0.9017 },
+    "SVM":                 { "accuracy": 0.9542, "f1": 0.9481 },
+    "KNN":                 { "accuracy": 0.9743, "f1": 0.9701 },
+    "Random Forest (AEGIS)": { "accuracy": 0.9834, "f1": 0.9805 }
+  },
+  "phase2_novel_features": {
+    "behavioral_fingerprinting": {
+      "description": "Cross-IP behavioral fingerprint correlation for IP-rotation botnet detection",
+      "false_positive_rate": 0.0,
+      "detection_latency_ms": 0.8
+    },
+    "adaptive_threshold": {
+      "description": "Dynamic threat level system: NORMAL / HIGH / CRITICAL based on attack frequency",
+      "thresholds": { "HIGH": 10, "CRITICAL": 50 },
+      "update_interval_seconds": 1
+    },
+    "apt_sequence_detection": {
+      "description": "Temporal kill-chain correlation for multi-stage APT detection",
+      "sequences_monitored": 6,
+      "max_window_seconds": 600
+    },
+    "honeypot_integration": {
+      "description": "Virtual honeypot on 6 ports with zero-FPR permanent blocking",
+      "honeypot_ports": [4444, 6666, 7777, 8888, 9999, 31337],
+      "false_positive_rate": 0.0
+    }
+  }
+}

@@ -1,0 +1,18 @@
+
+[🚀] Launching 'portscan' simulation (12 requests)
+--------------------------------------------------
+[1/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (201ms)
+[2/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (232ms)
+[3/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (209ms)
+[4/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (245ms)
+[5/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (217ms)
+[6/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (188ms)
+[7/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (221ms)
+[8/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (275ms)
+[9/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (230ms)
+[10/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (216ms)
+[11/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (186ms)
+[12/12] 160.195.194.34  -> PortScan        | Risk:  91.0 | Action: [91mBLOCK[0m (213ms)
+--------------------------------------------------
+[+] Simulation complete.
+
